@@ -66,6 +66,46 @@
   :type '(string)
   :group 'weather)
 
+(defcustom weather-temperature-unit "fahrenheit"
+  "Unit for temperature; either fahrenheit or celsius"
+  :type '(string)
+  :group 'weather)
+
+(defcustom weather-default-city nil
+  "Default city for weather information"
+  :type '(string)
+  :group 'weather)
+
+(defconst weather-distance-alist
+  '(("mile" . ((speed . windspeedMiles)
+	       (unit . "mph")))
+    ("km" . ((speed . windspeedKmph)
+	     (unit . "kmph"))))
+  "alist to make switch between distance unit easier")
+
+(defconst weather-temperature-alist
+  '(("fahrenheit" . ((current . temp_F)
+		     (max . tempMaxF)
+		     (min . tempMinF)
+		     (unit . "F")))
+    ("celsius" . ((current . temp_C)
+		  (max . tempMaxC)
+		  (min . tempMinC)
+		  (unit . "C"))))
+  "alist to make switch between weather unit easier")
+
+(defconst weather-forecast-template
+  (concat "%s: " ; date
+	  "%s, " ; weather description
+	  "high %s%s, " ; highest temperature with unit
+	  "low %s%s, " ; lowest temperature with unit
+	  "wind %s " ; wind direction
+	  " at "
+	  "%s %s, " ; wind speed with unit
+	  "precipitation %smm" ; precipitation
+	  ".")
+  "string template for forecast information")
+
 (defun weather-val (key alist)
   "The value part of an alist pairing"
   (cdr (assoc key alist)))
@@ -77,28 +117,37 @@
 (defun weather-format-forecast (record)
   "Format a forecast day record to a sensible string
 representation."
-  (concat (weather-val 'date record)
-	  ": "
-	  (weather-val
-	   'value
-	   (aref (weather-val 'weatherDesc record) 0))
-	  ", high "
-	  (weather-val 'tempMaxF record)
-	  "F, low "
-	  (weather-val 'tempMinF record)
-	  ", wind "
-	  (weather-val 'winddir16Point record)
-	  " at "
-	  ;; if mile isn't specified, use km
-	  (if (equal weather-distance-unit "mile")
-	      (concat
-	       (weather-val 'windspeedMiles record)
-	       " mph, precipitation ")
-	    (concat
-	     (weather-val 'windspeedKmph record)
-	     " kmph, precipitation "))
-	  (weather-val 'precipMM record)
-	  "mm."))
+  (let* ((d-alist (weather-val weather-distance-unit
+			       weather-distance-alist))
+	 (d-unit (weather-val 'unit d-alist))
+	 (t-alist (weather-val weather-temperature-unit
+			       weather-temperature-alist))
+	 (t-unit (weather-val 'unit t-alist)))
+
+    (format weather-forecast-template
+	    (weather-val 'date record)	; date
+	    (weather-val 'value
+			 (aref (weather-val 'weatherDesc record)
+			       0))	; weather description
+
+	    (weather-val (weather-val 'max
+				      t-alist)
+			 record)	; max temperature
+	    t-unit ; temperature unit
+
+	    (weather-val (weather-val 'min
+				      t-alist)
+			 record) ; min temperature
+	    t-unit
+	    
+	    (weather-val 'winddir16Point record) ; wind direction
+	    (weather-val (weather-val 'speed
+				      d-alist)
+			 record) ; wind speed
+	    d-unit ; disntance unit
+	    
+	    (weather-val 'precipMM record))))
+
 
 (defun weather-format-current-weather (record)
   "String representation of current condition record"
