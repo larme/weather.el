@@ -106,6 +106,20 @@
 	  ".")
   "string template for forecast information")
 
+(defconst weather-current-template
+  (concat "Current weather (as of %s ): " ; observation_time
+	  "%s, " ; weather description
+	  "%s degrees %s, " ; temperature with unit
+	  "wind %s at " ; wind direction
+	  "%s %s, " ; wind speed with unit
+	  "humidity %s%%, " ; humidity
+	  "pressure %smb, " ; pressure
+	  "precipitation %smm, " ; precipitation
+	  "visibility %s%s, " ; visibility and unit
+	  "%s%% cloud cover" ; cloud cover
+	  ".")
+  "string template for current information")
+
 (defun weather-val (key alist)
   "The value part of an alist pairing"
   (cdr (assoc key alist)))
@@ -113,6 +127,11 @@
 (defun weather-to-nearest-tenth (n)
   "Round n to the nearest tenth, e.g. 5.4432 -> 5.4"
   (/ (fround (* 10 n)) 10))
+
+(defun weather-km-to-miles (distance)
+  "convert km to miles"
+  (weather-to-nearest-tenth
+   (/ distance 1.61)))
 
 (defun weather-format-forecast (record)
   "Format a forecast day record to a sensible string
@@ -151,44 +170,40 @@ representation."
 
 (defun weather-format-current-weather (record)
   "String representation of current condition record"
-  (concat "Current weather (as of "
-	  (weather-val 'observation_time record)
-	  "): "
-	  (weather-val
-	   'value
-	   (aref (weather-val 'weatherDesc record) 0))
-	  ", "
-	  (weather-val 'temp_F record)
-	  " degrees F, wind "
-	  (weather-val 'winddir16Point record)
-	  " at "
-	  ;; if mile isn't specified, use km
-	  (if (equal weather-distance-unit "mile")
-	      (concat
-	       (weather-val 'windspeedMiles record)
-	       " mph, humidity ")
-	    (concat
-	     (weather-val 'windspeedKmph record)
-	     " kmph, humidity "))
-	  (weather-val 'humidity record)
-	  "%, pressure "
-	  (weather-val 'pressure record)
-	  "mb, precipitation "
-	  (weather-val 'precipMM record)
-	  "mm, visibility "
+  (let* ((d-alist (weather-val weather-distance-unit
+			       weather-distance-alist))
+	 (d-unit (weather-val 'unit d-alist))
+	 (t-alist (weather-val weather-temperature-unit
+			       weather-temperature-alist))
+	 (t-unit (weather-val 'unit t-alist)))
 
-	  ;; convert visibility in km to miles if using miles
-	  (let ((visibility (string-to-number (weather-val 'visibility record))))
-	    (if (equal weather-distance-unit "mile")
-		(concat 
-		 (number-to-string (weather-to-nearest-tenth (/ visibility 1.61)))
-		 "miles, ")
-	      (concat
-	       (number-to-string visibility)
-	       "km, ")))
-	  
-	  (weather-val 'cloudcover record)
-	  "% cloud cover."))
+    (format weather-current-template
+	    (weather-val 'observation_time record) ; observation_time
+	    (weather-val 'value
+			 (aref (weather-val 'weatherDesc
+					    record)
+			       0)) ; weather description
+	    (weather-val (weather-val 'current
+				      t-alist)
+			 record) ; temperature
+	    t-unit ; unit
+	    
+	    (weather-val 'winddir16Point record) ; windo direction
+	    (weather-val (weather-val 'speed
+				      d-alist)
+			 record) ; wind speed
+	    d-unit ; unit
+	    (weather-val 'humidity record)
+	    (weather-val 'pressure record)
+	    (weather-val 'precipMM record)
+	    (let* ((visibility (weather-val 'visibility
+					    record)) 
+		   (visibility-num (string-to-number visibility)))
+	      (if (equal weather-distance-unit "mile")
+		  (number-to-string (weather-km-to-miles visibility-num))
+		visibility)) ; visibility number value
+	    d-unit ; visibility unit
+	    (weather-val 'cloudcover record))))
 
 
 (defun weather-report-body (json-obj)
